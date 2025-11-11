@@ -2,9 +2,9 @@
 {
   "lotto_max": {
     "next_draw_date": "Friday, November 15, 2025",
-    "jackpot": "$25 Million",
-    "last_numbers": [5, 28, 31, 33, 39, 40, 49],
-    "bonus": 45
+    "jackpot": "$45 Million",
+    "last_numbers": [6, 28, 31, 33, 39, 40, 49],
+    "bonus": 55
   },
   "lotto_649": {
     "next_draw_date": "Saturday, November 16, 2025",
@@ -19,4 +19,5 @@
     "bonus": 9
   }
 }
+
 
