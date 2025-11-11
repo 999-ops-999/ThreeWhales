@@ -1,8 +1,6 @@
-import fetch from "node-fetch";
-import cheerio from "cheerio";
 import fs from "fs";
+import puppeteer from "puppeteer";
 
-// --- Функция для вычисления следующего розыгрыша ---
 function nextDrawDate(lastDate, daysOfWeek) {
   const from = new Date(lastDate);
   const nextDates = daysOfWeek.map(d => {
@@ -10,80 +8,65 @@ function nextDrawDate(lastDate, daysOfWeek) {
     while (date.getDay() !== d) date.setDate(date.getDate() + 1);
     return date;
   });
-  return nextDates.sort((a, b) => a - b)[0];
+  return nextDates.sort((a,b)=>a-b)[0];
 }
 
-// --- Парсим Lotto Max с сайта ---
 export async function fetchLottoMax() {
-  const url = "https://ontariolotterylive.com/lotto-max-numbers";
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Ошибка загрузки страницы: ${res.status}`);
-  const html = await res.text();
-  const $ = cheerio.load(html);
+  const browser = await puppeteer.launch({ args: ["--no-sandbox"] });
+  const page = await browser.newPage();
+  await page.goto("https://ontariolotterylive.com/lotto-max-numbers", { waitUntil: "domcontentloaded" });
 
-  // Дата последнего розыгрыша
-  const dateStr = $(".centred .date").text().trim(); // "Friday November 7th 2025"
-  const cleanDateStr = dateStr.replace(/(\d+)(st|nd|rd|th)/, "$1");
-  const lastDrawDate = new Date(cleanDateStr);
+  const data = await page.evaluate(() => {
+    const dateEl = document.querySelector(".centred .date");
+    const ballsEls = document.querySelectorAll(".centred .resultBall.ball");
+    const bonusEl = document.querySelector(".centred .bonus-ball");
+    const jackpotEl = document.querySelector(".jackpot.red");
 
-  if (isNaN(lastDrawDate)) {
-    throw new Error("Не удалось распарсить дату: " + dateStr);
-  }
+    const dateStr = dateEl ? dateEl.textContent.trim() : null;
+    const balls = Array.from(ballsEls).map(el => Number(el.textContent.trim()));
+    const bonus = bonusEl ? Number(bonusEl.textContent.trim()) : null;
+    const jackpot = jackpotEl ? jackpotEl.textContent.trim() : null;
 
-  // Шары
-  const balls = $(".centred .resultBall.ball").map((i, el) => Number($(el).text())).get();
-  const bonus = Number($(".centred .bonus-ball").text());
+    return { dateStr, balls, bonus, jackpot };
+  });
 
-  // Джекпот
-  const jackpot = $(".jackpot.red").first().text().trim();
+  await browser.close();
 
-  // Вычисляем следующий розыгрыш: вторник и пятница
-  const nextDraw = nextDrawDate(lastDrawDate, [2, 5]);
+  const lastDrawDate = new Date(data.dateStr.replace(/(\d+)(st|nd|rd|th)/, "$1"));
+  const nextDraw = nextDrawDate(lastDrawDate, [2,5]); // Tue, Fri
 
   return {
     last_draw_date: lastDrawDate.toDateString(),
     next_draw_date: nextDraw.toDateString(),
-    jackpot,
-    last_numbers: balls,
-    bonus
+    jackpot: data.jackpot,
+    last_numbers: data.balls,
+    bonus: data.bonus
   };
 }
 
-// --- Статические данные для 6/49 и Daily Grand (можно добавить парсинг позже) ---
-function getLotto649() {
-  return {
-    next_draw_date: "Saturday, November 16, 2025",
-    jackpot: "$10 Million",
-    last_numbers: [3, 14, 22, 27, 35, 44],
-    golden_ball: 12
-  };
-}
-
-function getDailyGrand() {
-  return {
-    next_draw_date: "Monday, November 10, 2025",
-    jackpot: "$1,000 a Day for Life",
-    last_numbers: [7, 18, 21, 29, 36],
-    bonus: 9
-  };
-}
-
-// --- Основная функция ---
-async function updateData() {
+// --- запуск отдельно ---
+(async () => {
   try {
     const lottoMax = await fetchLottoMax();
+    // для примера 649 и Daily Grand оставим статические
     const data = {
       lotto_max: lottoMax,
-      lotto_649: getLotto649(),
-      daily_grand: getDailyGrand()
+      lotto_649: {
+        next_draw_date: "Saturday, November 16, 2025",
+        jackpot: "$10 Million",
+        last_numbers: [3, 14, 22, 27, 35, 44],
+        golden_ball: 12
+      },
+      daily_grand: {
+        next_draw_date: "Monday, November 10, 2025",
+        jackpot: "$1,000 a Day for Life",
+        last_numbers: [7, 18, 21, 29, 36],
+        bonus: 9
+      }
     };
-
     fs.writeFileSync("data.json", JSON.stringify(data, null, 2));
     console.log("data.json успешно обновлен!");
   } catch (err) {
     console.error("Ошибка обновления данных:", err);
   }
-}
-
-// --- Запуск ---
-updateData();
+})();
