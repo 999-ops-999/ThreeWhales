@@ -39,7 +39,7 @@ function updateLottoMaxCard(lottoData, lang = "en") {
   }
 
   // Переводим дату на французский, если нужно
-  let dateText = lottoData.last_draw_date || "—";
+  let dateText = lottoData.next_draw_date || "—";
   if (lang === "fr" && dateText && dateText !== "—") {
     try {
       const parsed = new Date(dateText.replace(/(\d+)(st|nd|rd|th)/, "$1"));
@@ -72,5 +72,6 @@ function updateLottoMaxCard(lottoData, lang = "en") {
     numbersEl.textContent = "—";
   }
 }
+
 
 
